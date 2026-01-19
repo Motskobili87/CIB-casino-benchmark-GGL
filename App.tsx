@@ -52,6 +52,8 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortKey, setSortKey] = useState<"name" | "rating" | "userRatingsTotal">("userRatingsTotal");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>(() => (localStorage.getItem(THEME_KEY) as any) || 'dark');
 
@@ -103,12 +105,26 @@ const App: React.FC = () => {
     fetchMarketData();
   }, [fetchMarketData]);
 
-  const processedCasinos = useMemo(() => {
-    if (!data) return [];
-    return data.casinos
-      .filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
-      .sort((a, b) => b.userRatingsTotal - a.userRatingsTotal);
-  }, [data, searchTerm]);
+const processedCasinos = useMemo(() => {
+  if (!data) return [];
+
+  const filtered = data.casinos.filter(c =>
+    c.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const dir = sortDir === "asc" ? 1 : -1;
+
+  return filtered.sort((a, b) => {
+    const av: any = a[sortKey];
+    const bv: any = b[sortKey];
+
+    if (typeof av === "string" && typeof bv === "string") {
+      return av.localeCompare(bv) * dir;
+    }
+
+    return (Number(av) - Number(bv)) * dir;
+  });
+}, [data, searchTerm, sortKey, sortDir]);
 
   return (
     <div className={`min-h-screen ${theme === 'dark' ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'} transition-colors duration-300 pb-12`}>
@@ -159,9 +175,41 @@ const App: React.FC = () => {
                 <table className="w-full text-left">
                   <thead className={theme === 'dark' ? 'bg-slate-800' : 'bg-slate-100'}>
                     <tr className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                      <th className="p-5">Venue</th>
-                      <th className="p-5">Score</th>
-                      <th className="p-5 text-right">Volume</th>
+                       <th
+  className="p-5 cursor-pointer"
+  onClick={() => {
+    setSortKey("name");
+    setSortDir(prev =>
+      sortKey === "name" ? (prev === "asc" ? "desc" : "asc") : "asc"
+    );
+  }}
+>
+  Venue
+</th>
+
+<th
+  className="p-5 cursor-pointer"
+  onClick={() => {
+    setSortKey("rating");
+    setSortDir(prev =>
+      sortKey === "rating" ? (prev === "asc" ? "desc" : "asc") : "asc"
+    );
+  }}
+>
+  Score
+</th>
+
+<th
+  className="p-5 text-right cursor-pointer"
+  onClick={() => {
+    setSortKey("userRatingsTotal");
+    setSortDir(prev =>
+      sortKey === "userRatingsTotal" ? (prev === "asc" ? "desc" : "asc") : "desc"
+    );
+  }}
+>
+  Volume
+</th>
                       <th className="p-5 text-center">Action</th>
                     </tr>
                   </thead>
