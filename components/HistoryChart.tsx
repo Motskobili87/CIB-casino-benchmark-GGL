@@ -52,21 +52,30 @@ const HistoryChart: React.FC<Props> = ({ history, theme }) => {
     return current === prev;
   });
 
-  const chartData = history.map(snapshot => {
-    const d = new Date(snapshot.timestamp);
-    const dateLabel = d.toLocaleDateString([], { month: 'short', day: 'numeric' });
-    const timeLabel = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-    const label = hasMultipleSameDay ? `${dateLabel} ${timeLabel}` : dateLabel;
-    
-    const entry: any = {
-      date: label,
-      fullDate: d.toLocaleString()
-    };
-    snapshot.casinos.forEach(casino => {
-      entry[casino.name] = casino.userRatingsTotal;
-    });
-    return entry;
+const lastKnown: Record<string, number> = {};
+
+const chartData = history.map(snapshot => {
+  const d = new Date(snapshot.timestamp);
+  const dateLabel = d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  const timeLabel = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  const label = hasMultipleSameDay ? `${dateLabel} ${timeLabel}` : dateLabel;
+
+  const entry: any = {
+    date: label,
+    fullDate: d.toLocaleString()
+  };
+
+  snapshot.casinos.forEach(casino => {
+    lastKnown[casino.name] = casino.userRatingsTotal;
   });
+
+  // 👇 fill missing casinos with last known value
+  casinoNames.forEach(name => {
+    entry[name] = lastKnown[name] ?? null;
+  });
+
+  return entry;
+});
 
   const casinoNames: string[] = Array.from(new Set(history.flatMap(s => s.casinos.map(c => c.name))));
 
