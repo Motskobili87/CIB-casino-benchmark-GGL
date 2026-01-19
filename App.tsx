@@ -16,6 +16,10 @@ import {
   AlertCircle,
   ExternalLink
 } from 'lucide-react';
+const [accessCode, setAccessCode] = useState(
+  localStorage.getItem("access_code") || ""
+);
+const [isAuthorized, setIsAuthorized] = useState(false);
 
 const THEME_KEY = 'batumi_casino_theme';
 const SUBJECT_KEY = "international";

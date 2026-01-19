@@ -50,6 +50,28 @@ app.use(express.json());
 const distPath = path.join(__dirname, 'dist');
 app.use(express.static(distPath));
 
+const ACCESS_CODE = process.env.ACCESS_CODE;
+
+app.use('/api', (req, res, next) => {
+  // Allow health check
+  if (req.path === '/health') return next();
+
+  // Allow API access only if code is provided
+  const code =
+    req.headers['x-access-code'] ||
+    req.query.code ||
+    req.body?.code;
+
+  if (!ACCESS_CODE || code === ACCESS_CODE) {
+    return next();
+  }
+
+  return res.status(401).json({ error: 'Access denied' });
+});
+
+
+
+
 
 // API: Get Latest Data and History
 // Fix: Added 'next' parameter and ensuring signature matches RequestHandler to resolve type overload error.
