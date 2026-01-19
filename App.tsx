@@ -16,10 +16,7 @@ import {
   AlertCircle,
   ExternalLink
 } from 'lucide-react';
-const [accessCode, setAccessCode] = useState(
-  localStorage.getItem("access_code") || ""
-);
-const [isAuthorized, setIsAuthorized] = useState(false);
+
 
 const THEME_KEY = 'batumi_casino_theme';
 const SUBJECT_KEY = "international";
@@ -56,6 +53,9 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [accessCode, setAccessCode] = useState(localStorage.getItem("access_code") || "");
+  const [isAuthorized, setIsAuthorized] = useState(false);
+
   const [sortKey, setSortKey] = useState<"name" | "rating" | "userRatingsTotal">("userRatingsTotal");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
@@ -77,7 +77,9 @@ const App: React.FC = () => {
   const fetchMarketData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/market');
+      const res = await fetch('/api/market', {
+  headers: { 'x-access-code': accessCode }
+});
       if (!res.ok) throw new Error('Failed to fetch global market data');
       const result = await res.json();
       setData(result);
@@ -93,7 +95,10 @@ const App: React.FC = () => {
     try {
       const syncRes = await fetch('/api/sync', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+  'Content-Type': 'application/json',
+  'x-access-code': accessCode
+},
         body: JSON.stringify({ targets: FIXED_MARKET_ENTITIES })
       });
       if (!syncRes.ok) throw new Error('Sync failed on server');
@@ -108,6 +113,11 @@ const App: React.FC = () => {
   useEffect(() => {
     fetchMarketData();
   }, [fetchMarketData]);
+  
+  useEffect(() => {
+  localStorage.setItem("access_code", accessCode);
+}, [accessCode]);
+
 
 const processedCasinos = useMemo(() => {
   if (!data) return [];
