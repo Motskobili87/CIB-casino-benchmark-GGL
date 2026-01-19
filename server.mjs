@@ -81,7 +81,10 @@ app.get('/api/market', async (req, res, next) => {
 app.post('/api/sync', async (req, res, next) => {
   try {
     const { targets } = req.body;
-    if (!targets) return res.status(400).send("No targets");
+    if (!Array.isArray(targets) || targets.length === 0) {
+  return res.status(400).send("No targets");
+}
+
     
     const targetInstructions = targets.map(t => `- ${t.name} (Place ID: ${t.placeId})`).join('\n');
     const prompt = `Perform a live lookup of these casinos in Batumi, Georgia. Format: | Name | Rating | Reviews | PlaceID | Address |\n${targetInstructions}`;
@@ -114,16 +117,50 @@ app.post('/api/sync', async (req, res, next) => {
       }
     });
 
-    if (casinos.length > 0) {
-      await sql`INSERT INTO market_snapshots (casinos) VALUES (${sql.json(casinos)})`;
-      res.json({ success: true, count: casinos.length });
-    } else {
-      res.status(422).json({ error: "No data parsed" });
+   if (casinos.length > 0) {
+  await sql`INSERT INTO market_snapshots (casinos) VALUES (${sql.json(casinos)})`;
+  return res.json({ success: true, count: casinos.length, repeated: false });
+}
+
+// ✅ fallback: repeat last snapshot if parsing failed
+const last = await sql`
+  SELECT casinos
+  FROM market_snapshots
+  ORDER BY timestamp DESC
+  LIMIT 1
+`;
+
+if (last.length > 0) {
+  await sql`INSERT INTO market_snapshots (casinos) VALUES (${sql.json(last[0].casinos)})`;
+  return res.json({ success: true, count: (last[0].casinos || []).length, repeated: true });
+}
+
+return res.status(422).json({ error: "No data parsed and no previous snapshot exists" });
+
+ } catch (err) {
+  try {
+    const last = await sql`
+      SELECT casinos
+      FROM market_snapshots
+      ORDER BY timestamp DESC
+      LIMIT 1
+    `;
+
+    if (last.length > 0) {
+      await sql`INSERT INTO market_snapshots (casinos) VALUES (${sql.json(last[0].casinos)})`;
+      return res.status(200).json({
+        success: true,
+        count: (last[0].casinos || []).length,
+        repeated: true,
+        error: String(err?.message || err)
+      });
     }
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-    if (next) next(err);
+  } catch (e) {
+    // ignore fallback failure
   }
+
+  return res.status(500).json({ error: err.message || String(err) });
+}
 });
 
 app.get('/health', (req, res) => res.status(200).send('OK'));

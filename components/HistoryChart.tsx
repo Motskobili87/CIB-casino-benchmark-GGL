@@ -92,7 +92,7 @@ const HistoryChart: React.FC<Props> = ({ history, theme }) => {
         </div>
       </div>
       
-      <div className="flex-1 min-h-0">
+      <div className="w-full h-[300px] md:h-[320px]">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={chartData} margin={{ top: 10, right: 110, left: 10, bottom: 10 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
