@@ -1,4 +1,3 @@
-
 import express from 'express';
 import postgres from 'postgres';
 import { GoogleGenAI } from "@google/genai";
@@ -7,13 +6,18 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
-const port = process.env.PORT || 8080;
 
-// Database Connection (Google Cloud SQL for PostgreSQL)
-// Uses the DATABASE_URL environment variable.
-// Cloud Run recommends connecting via Unix sockets.
-const sql = postgres(process.env.DATABASE_URL, {
-  max: 10, // Optimized for Cloud Run concurrency
+// ✅ Cloud Run port + bind to 0.0.0.0
+const port = Number(process.env.PORT || 8080);
+
+// ✅ Cloud SQL Postgres connection (NO DATABASE_URL parsing)
+const sql = postgres({
+  host: process.env.PGHOST,                 // e.g. /cloudsql/PROJECT:REGION:INSTANCE
+  port: Number(process.env.PGPORT || 5432),
+  database: process.env.PGDATABASE,         // e.g. postgres
+  username: process.env.PGUSER,             // e.g. postgres
+  password: process.env.PGPASSWORD,         // e.g. !Shotiko11 (works fine here)
+  max: 10,
   idle_timeout: 20,
   connect_timeout: 10,
 });
@@ -21,7 +25,6 @@ const sql = postgres(process.env.DATABASE_URL, {
 // Initialize Database Table for Cloud SQL
 const initDb = async () => {
   try {
-    // Create the schema if it doesn't exist
     await sql`
       CREATE TABLE IF NOT EXISTS market_snapshots (
         id SERIAL PRIMARY KEY,
@@ -32,7 +35,7 @@ const initDb = async () => {
     console.log("Cloud SQL Table Initialized Successfully.");
   } catch (err) {
     console.error("Database initialization error:", err);
-    // In production, we might want to exit if DB isn't ready
+    // Optional: process.exit(1);  // if you want to fail fast when DB is required
   }
 };
 initDb();
@@ -48,26 +51,25 @@ app.use(express.static(__dirname));
 app.get('/api/market', async (req, res) => {
   try {
     const history = await sql`
-      SELECT timestamp, casinos 
-      FROM market_snapshots 
-      ORDER BY timestamp DESC 
+      SELECT timestamp, casinos
+      FROM market_snapshots
+      ORDER BY timestamp DESC
       LIMIT 1000
     `;
-    
-    // The most recent record is our "current" state
+
     const latest = history[0] || { casinos: [], timestamp: new Date().toISOString() };
-    
+
     res.json({
       casinos: latest.casinos,
       lastUpdated: latest.timestamp,
-      history: history.map(h => ({ 
-        timestamp: h.timestamp, 
-        casinos: h.casinos 
+      history: history.map(h => ({
+        timestamp: h.timestamp,
+        casinos: h.casinos
       })).reverse()
     });
   } catch (err) {
     console.error("Cloud SQL Fetch Error:", err);
-    res.status(500).json({ error: 'Database fetch failed. Check DATABASE_URL and Cloud SQL permissions.' });
+    res.status(500).json({ error: 'Database fetch failed. Check env vars + Cloud SQL permissions.' });
   }
 });
 
@@ -78,7 +80,7 @@ app.post('/api/sync', async (req, res) => {
     const targetInstructions = targets.map(t => `- ${t.name} (Place ID: ${t.placeId})`).join('\n');
 
     const prompt = `
-      Perform a live lookup of these casinos in Batumi, Georgia. 
+      Perform a live lookup of these casinos in Batumi, Georgia.
       Analyze the current ratings and review counts on Google Maps.
       ${targetInstructions}
       Format: | Venue Name | Rating | Review Count | Place ID | Address |
@@ -87,7 +89,7 @@ app.post('/api/sync', async (req, res) => {
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
       contents: prompt,
-      config: { 
+      config: {
         tools: [{ googleMaps: {} }, { googleSearch: {} }],
         temperature: 0.1
       },
@@ -95,8 +97,7 @@ app.post('/api/sync', async (req, res) => {
 
     const text = response.text || "";
     const casinos = [];
-    
-    // AI Content Parser
+
     text.split('\n').forEach(row => {
       if ((row.match(/\|/g) || []).length >= 4) {
         const parts = row.split('|').map(p => p.trim());
@@ -127,7 +128,7 @@ app.post('/api/sync', async (req, res) => {
   }
 });
 
-// Health check for Google Cloud Run
+// Health check
 app.get('/health', (req, res) => res.status(200).send('OK'));
 
 // Serve frontend SPA
@@ -135,6 +136,8 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-app.listen(port, () => {
+// ✅ IMPORTANT: bind to 0.0.0.0 for Cloud Run
+app.listen(port, "0.0.0.0", () => {
   console.log(`Cloud Run Service Active on Port ${port}`);
 });
+

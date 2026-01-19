@@ -1,5 +1,5 @@
 {
-  "name": "Batumi Casino Benchmark - Google",
+  "name": "GGL-Batumi Casino Benchmark",
   "description": "A sophisticated benchmarking tool to compare review counts and average scores for casinos in Batumi, Georgia, using real-time Google Maps grounding.",
   "requestFramePermissions": [
     "geolocation"
