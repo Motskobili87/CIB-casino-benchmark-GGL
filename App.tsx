@@ -54,7 +54,31 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [accessCode, setAccessCode] = useState(localStorage.getItem("access_code") || "");
-  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [isAuthorized, setIsAuthorized] = useState(Boolean(localStorage.getItem("access_code")));
+  const [authError, setAuthError] = useState<string | null>(null);
+
+  
+const verifyAccessCode = useCallback(async () => {
+  setAuthError(null);
+
+  try {
+    const res = await fetch("/api/market", {
+      headers: { "x-access-code": accessCode }
+    });
+
+    if (!res.ok) {
+      throw new Error("Wrong access code");
+    }
+
+    localStorage.setItem("access_code", accessCode);
+    setIsAuthorized(true);
+    fetchMarketData(); // ✅ load dashboard immediately
+  } catch (e: any) {
+    setIsAuthorized(false);
+    setAuthError(e.message || "Wrong access code");
+  }
+}, [accessCode]);
+
 
   const [sortKey, setSortKey] = useState<"name" | "rating" | "userRatingsTotal">("userRatingsTotal");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
@@ -88,7 +112,7 @@ const App: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [accessCode]);
 
   const refreshData = useCallback(async () => {
     setLoading(true);
@@ -108,16 +132,12 @@ const App: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [fetchMarketData]);
+  }, [fetchMarketData, accessCode]);
 
   useEffect(() => {
     fetchMarketData();
   }, [fetchMarketData]);
   
-  useEffect(() => {
-  localStorage.setItem("access_code", accessCode);
-}, [accessCode]);
-
 
 const processedCasinos = useMemo(() => {
   if (!data) return [];
@@ -139,6 +159,35 @@ const processedCasinos = useMemo(() => {
     return (Number(av) - Number(bv)) * dir;
   });
 }, [data, searchTerm, sortKey, sortDir]);
+if (!isAuthorized) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white px-4">
+      <div className="bg-slate-900 border border-slate-800 p-8 rounded-2xl w-full max-w-sm">
+        <h2 className="text-lg font-black uppercase tracking-tight mb-2">Access Required</h2>
+        <p className="text-xs text-slate-400 mb-6">Enter access code to open dashboard.</p>
+
+        <input
+          type="password"
+          value={accessCode}
+          onChange={(e) => setAccessCode(e.target.value)}
+          placeholder="Access code"
+          className="w-full p-3 rounded-xl bg-slate-800 border border-slate-700 text-white mb-3"
+        />
+
+        {authError && (
+          <p className="text-xs text-rose-400 font-bold mb-3">{authError}</p>
+        )}
+
+        <button
+          onClick={verifyAccessCode}
+          className="w-full bg-indigo-600 hover:bg-indigo-500 transition py-3 rounded-xl font-black uppercase text-sm"
+        >
+          Enter
+        </button>
+      </div>
+    </div>
+  );
+}
 
   return (
     <div className={`min-h-screen ${theme === 'dark' ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'} transition-colors duration-300 pb-12`}>
